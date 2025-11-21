@@ -1,0 +1,12 @@
+# Sample render.yaml for a Node web service (do NOT put secrets here)
+# You can use this to create the service from the repository settings on Render.
+
+services:
+  - type: web
+    name: pench-safari
+    env: node
+    plan: starter
+    region: oregon
+    buildCommand: cd server && npm install && npm run build
+    startCommand: node server/server.js
+    # Do NOT store secrets in this file. Set EMAIL_USER and EMAIL_PASS in Render Dashboard.
