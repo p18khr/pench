@@ -5,6 +5,10 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+// Load environment variables from .env file
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -17,6 +21,7 @@ const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "../client/build")));
 
 app.post("/send", async (req, res) => {
+  console.log('/send called with body:', req.body);
   const { name, email, number, date } = req.body;
 
   if (!name || !email || !number || !date) {
@@ -24,106 +29,90 @@ app.post("/send", async (req, res) => {
   }
 
   try {
-    // Prefer OAuth2 if OAuth env vars are provided for Gmail
-    let transportOptions;
-    const hasOAuth =
-      process.env.EMAIL_OAUTH_CLIENT_ID &&
-      process.env.EMAIL_OAUTH_CLIENT_SECRET &&
-      process.env.EMAIL_OAUTH_REFRESH_TOKEN &&
-      process.env.EMAIL_USER;
+    // Gmail API via OAuth2 (works over HTTPS — avoids blocked SMTP ports on hosts)
+    const gmailClientId = process.env.GMAIL_CLIENT_ID;
+    const gmailClientSecret = process.env.GMAIL_CLIENT_SECRET;
+    const gmailRefreshToken = process.env.GMAIL_REFRESH_TOKEN;
+    const gmailUser = process.env.GMAIL_USER; // email address to use as sender
 
-    if (hasOAuth) {
-      console.log("Using OAuth2 authentication for Gmail");
-      
-      const oAuth2Client = new google.auth.OAuth2(
-        process.env.EMAIL_OAUTH_CLIENT_ID,
-        process.env.EMAIL_OAUTH_CLIENT_SECRET,
-        "https://developers.google.com/oauthplayground"
-      );
-      
-      oAuth2Client.setCredentials({ 
-        refresh_token: process.env.EMAIL_OAUTH_REFRESH_TOKEN 
-      });
-
-      let accessTokenResponse;
+    if (gmailClientId && gmailClientSecret && gmailRefreshToken && gmailUser) {
       try {
-        accessTokenResponse = await oAuth2Client.getAccessToken();
-        console.log("Successfully obtained access token");
-      } catch (err) {
-        console.error("Failed to obtain access token:", err.message);
-        console.error("Full error:", err);
-        return res.status(500).json({ 
-          message: "Email authentication failed. Please check OAuth credentials." 
-        });
-      }
+        const oAuth2Client = new google.auth.OAuth2(gmailClientId, gmailClientSecret);
+        oAuth2Client.setCredentials({ refresh_token: gmailRefreshToken });
+        // getAccessToken will use the refresh token to obtain a fresh access token
+        const accessTokenResponse = await oAuth2Client.getAccessToken();
+        const accessToken = accessTokenResponse && accessTokenResponse.token ? accessTokenResponse.token : null;
 
-      // getAccessToken() returns an object with `token` property
-      const accessToken = accessTokenResponse?.token;
-      
-      if (!accessToken) {
-        console.error("No access token received from OAuth2Client");
-        return res.status(500).json({ 
-          message: "Failed to generate access token." 
-        });
-      }
+        if (!accessToken) {
+          console.error('Unable to obtain Gmail access token');
+          // fall through to SMTP fallback if configured
+        } else {
+          const gmail = google.gmail({ version: 'v1', auth: oAuth2Client });
+          const html = `
+            <h2>Visitor Details</h2>
+            <p><strong>Name:</strong> ${name}</p>
+            <p><strong>Email:</strong> ${email}</p>
+            <p><strong>Mobile Number:</strong> ${number}</p>
+            <p><strong>Date of Visit:</strong> ${date}</p>
+          `;
+          const raw = [
+            `From: ${gmailUser}`,
+            `To: gojungleeadventures@gmail.com`,
+            `Reply-To: ${email}`,
+            `Subject: New Visitor Entry from ${name}`,
+            'Content-Type: text/html; charset=UTF-8',
+            '',
+            html,
+          ].join('\r\n');
 
-      transportOptions = {
-        service: "gmail",
-        auth: {
-          type: "OAuth2",
-          user: process.env.EMAIL_USER,
-          clientId: process.env.EMAIL_OAUTH_CLIENT_ID,
-          clientSecret: process.env.EMAIL_OAUTH_CLIENT_SECRET,
-          refreshToken: process.env.EMAIL_OAUTH_REFRESH_TOKEN,
-          accessToken,
-        },
-      };
-    } else {
-      console.log("OAuth2 variables not found, using SMTP fallback");
-      
-      // Fallback to SMTP or simple username/password
-      if (!process.env.EMAIL_USER || (!process.env.EMAIL_PASS && !process.env.EMAIL_HOST)) {
-        console.error("Email configuration missing. Provide OAuth2 vars or EMAIL_USER + EMAIL_PASS or SMTP host.");
-        return res.status(500).json({ message: "Email service not configured." });
-      }
+          const encoded = Buffer.from(raw)
+            .toString('base64')
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
 
-      if (process.env.EMAIL_HOST) {
-        transportOptions = {
-          host: process.env.EMAIL_HOST,
-          port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : 587,
-          secure: process.env.EMAIL_SECURE === "true",
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-          },
-        };
-      } else {
-        transportOptions = {
-          service: process.env.EMAIL_SERVICE || "gmail",
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS,
-          },
-        };
+          await gmail.users.messages.send({
+            userId: 'me',
+            requestBody: { raw: encoded },
+          });
+
+          console.log('Email sent via Gmail API');
+          return res.json({ message: 'Email sent successfully!' });
+        }
+      } catch (gmailErr) {
+        console.error('Gmail API send error:', gmailErr && gmailErr.message ? gmailErr.message : gmailErr);
+        // fall through to SMTP fallback
       }
     }
 
-    const transporter = nodemailer.createTransport(transportOptions);
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
 
-    // Verify transporter configuration
+    if (!smtpUser || !smtpPass) {
+      console.error("SMTP_USER or SMTP_PASS is not set in environment variables");
+      return res.status(500).json({ message: "Email service not configured." });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      logger: true,
+      debug: true,
+    });
+
     try {
       await transporter.verify();
-      console.log("Email transporter verified successfully");
-    } catch (verifyError) {
-      console.error("Transporter verification failed:", verifyError.message);
-      return res.status(500).json({ 
-        message: "Email service configuration error." 
-      });
+      console.log('SMTP connection verified');
+    } catch (verifyErr) {
+      console.error('SMTP verify failed:', verifyErr);
+      return res.status(500).json({ message: 'Email service not available.' });
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_USER, // Use authenticated user as sender
-      replyTo: email, // Set visitor's email as reply-to
+      from: email,
       to: "gojungleeadventures@gmail.com",
       subject: `New Visitor Entry from ${name}`,
       html: `
@@ -135,8 +124,8 @@ app.post("/send", async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully to gojungleeadventures@gmail.com");
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent:', info && info.response ? info.response : info);
     res.json({ message: "Email sent successfully!" });
   } catch (err) {
     console.error("Error sending email:", err);
