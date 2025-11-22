@@ -14,6 +14,7 @@ const ContactForm = () => {
       email: formData.get("email"),
       number: formData.get("number"),
       date: formData.get("date"),
+      message: formData.get("message"),
     };
 
     try {
@@ -331,6 +332,17 @@ const ContactForm = () => {
             className="form-input"
             required
           />
+
+          <label className="form-label" htmlFor="message">
+            Message
+          </label>
+          <textarea
+            id="message"
+            name="message"
+            className="form-input"
+            placeholder="Enter your message (optional)"
+            rows="4"
+          ></textarea>
 
           <button type="submit" className="submit-button">
             Send Details

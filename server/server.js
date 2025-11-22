@@ -22,7 +22,7 @@ app.use(express.static(path.join(__dirname, "../client/build")));
 
 app.post("/send", async (req, res) => {
   console.log('/send called with body:', req.body);
-  const { name, email, number, date } = req.body;
+  const { name, email, number, date, message } = req.body;
 
   if (!name || !email || !number || !date) {
     return res.status(400).json({ message: "All fields are required" });
@@ -54,6 +54,7 @@ app.post("/send", async (req, res) => {
             <p><strong>Email:</strong> ${email}</p>
             <p><strong>Mobile Number:</strong> ${number}</p>
             <p><strong>Date of Visit:</strong> ${date}</p>
+            ${message ? `<p><strong>Message:</strong> ${message}</p>` : ''}
           `;
           const raw = [
             `From: ${gmailUser}`,
@@ -121,6 +122,7 @@ app.post("/send", async (req, res) => {
         <p><strong>Email:</strong> ${email}</p>
         <p><strong>Mobile Number:</strong> ${number}</p>
         <p><strong>Date of Visit:</strong> ${date}</p>
+        ${message ? `<p><strong>Message:</strong> ${message}</p>` : ''}
       `,
     };
 
