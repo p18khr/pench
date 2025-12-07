@@ -135,6 +135,11 @@ app.post("/send", async (req, res) => {
   }
 });
 
+// Lightweight health check endpoint for uptime monitors and Render cron pings
+app.get("/__health", (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
 app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "../client/build", "index.html"));
 });

@@ -10,3 +10,16 @@ services:
     buildCommand: cd server && npm install && npm run build
     startCommand: node server/server.js
     # Do NOT store secrets in this file. Set EMAIL_USER and EMAIL_PASS in Render Dashboard.
+
+  # Optional: Scheduled job to ping the web service periodically to keep it warm
+  - type: cron
+    name: pench-safari-keepalive
+    schedule: "*/5 * * * *" # every 5 minutes
+    env: node
+    plan: starter
+    region: oregon
+    runtime: docker
+    startCommand: |
+      apk add --no-cache curl || true
+      echo "Pinging service...";
+      curl -sS "$RENDER_EXTERNAL_URL/__health" || true
