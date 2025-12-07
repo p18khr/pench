@@ -18,7 +18,8 @@ const ContactForm = () => {
     };
 
     try {
-      const response = await fetch("/send", {
+      const baseUrl = process.env.REACT_APP_API_URL || ""; // if set, use serverless API
+      const response = await fetch(`${baseUrl}/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
