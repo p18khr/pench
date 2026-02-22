@@ -1,6 +1,16 @@
-import { google } from 'googleapis';
+const { google } = require('googleapis');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  const origin = (req.headers.origin || '').replace(/\/$/, '');
+  const configured = (process.env.CORS_ALLOW_ORIGIN || 'https://enchsafaribooking.in').replace(/\/$/, '');
+  const allow = origin && origin === configured ? origin : configured;
+  res.setHeader('Access-Control-Allow-Origin', allow);
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
@@ -55,14 +65,11 @@ export default async function handler(req, res) {
       .replace(/\//g, '_')
       .replace(/=+$/, '');
 
-    await gmail.users.messages.send({
-      userId: 'me',
-      requestBody: { raw: encoded },
-    });
-
+    await gmail.users.messages.send({ userId: 'me', requestBody: { raw: encoded } });
     return res.json({ message: 'Email sent successfully!' });
   } catch (err) {
-    console.error('Vercel Gmail API send error:', err && err.message ? err.message : err);
-    return res.status(500).json({ message: 'Failed to send message. Please try again later.' });
+    const msg = err && err.message ? err.message : String(err);
+    console.error('Vercel Gmail API send error:', msg);
+    return res.status(500).json({ message: 'Failed to send message. Please try again later.', error: msg });
   }
 }
