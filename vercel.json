@@ -1,11 +1,17 @@
 {
   "version": 2,
+  "buildCommand": "cd client && npm install && npm run build",
+  "outputDirectory": "client/build",
   "functions": {
     "api/send.js": {
-      "runtime": "nodejs18.x"
+      "maxDuration": 30
     }
   },
   "routes": [
-    { "src": "/send", "dest": "/api/send" }
+    { "src": "/api/send", "dest": "/api/send.js" },
+    { "src": "/send", "dest": "/api/send.js" },
+    { "src": "/static/(.*)", "dest": "/static/$1" },
+    { "src": "/(.*)\\..*", "dest": "/$1.$2" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

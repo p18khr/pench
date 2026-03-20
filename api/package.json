@@ -1,0 +1,8 @@
+{
+  "name": "pench-vercel-api",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "googleapis": "^121.0.0"
+  }
+}

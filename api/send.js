@@ -15,7 +15,16 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  const { name, email, number, date, message } = req.body || {};
+  let body = req.body;
+  if (typeof body === 'string') {
+    try {
+      body = JSON.parse(body);
+    } catch (e) {
+      return res.status(400).json({ message: 'Invalid JSON' });
+    }
+  }
+
+  const { name, email, number, date, message } = body || {};
   if (!name || !email || !number || !date) {
     return res.status(400).json({ message: 'All fields are required' });
   }
@@ -26,6 +35,7 @@ module.exports = async function handler(req, res) {
   const gmailUser = process.env.GMAIL_USER;
 
   if (!gmailClientId || !gmailClientSecret || !gmailRefreshToken || !gmailUser) {
+    console.error('Missing env vars:', { gmailClientId: !!gmailClientId, gmailClientSecret: !!gmailClientSecret, gmailRefreshToken: !!gmailRefreshToken, gmailUser: !!gmailUser });
     return res.status(500).json({ message: 'Email service not configured.' });
   }
 
