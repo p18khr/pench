@@ -2,7 +2,7 @@ const { google } = require('googleapis');
 
 module.exports = async function handler(req, res) {
   const origin = (req.headers.origin || '').replace(/\/$/, '');
-  const configured = (process.env.CORS_ALLOW_ORIGIN || 'https://enchsafaribooking.in').replace(/\/$/, '');
+  const configured = (process.env.CORS_ALLOW_ORIGIN || 'https://penchsafaribooking.in').replace(/\/$/, '');
   const allow = origin && origin === configured ? origin : configured;
   res.setHeader('Access-Control-Allow-Origin', allow);
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
