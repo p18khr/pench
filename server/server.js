@@ -20,6 +20,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "../client/build")));
 
+app.get("/hello", (req, res) => {
+  res.json({ message: "hii" });
+});
+
 app.post("/send", async (req, res) => {
   console.log('/send called with body:', req.body);
   const { name, email, number, date, message } = req.body;
